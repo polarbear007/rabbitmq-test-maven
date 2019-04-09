@@ -1106,4 +1106,32 @@ public class RabbitHelloWorld {
 		channel.close();
 		conn.close();
 	}
+	
+	// basicConsume 模式下，也是可以使用事务进行回滚的
+	@Test
+	public void testTX6() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		// 开启事务
+		channel.txSelect();
+		
+		channel.basicConsume("myqueue", new DefaultConsumer(channel) {
+			@Override
+			public void handleDelivery(String consumerTag, Envelope envelope, BasicProperties properties, byte[] body)
+					throws IOException {
+				System.out.println(new String(body));
+				channel.basicAck(envelope.getDeliveryTag(), false);
+			}
+		});
+		
+		channel.txRollback();
+		
+		Thread.sleep(20*1000);
+		
+		channel.close();
+		conn.close();
+	}
 }
