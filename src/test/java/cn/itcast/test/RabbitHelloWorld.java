@@ -1075,4 +1075,35 @@ public class RabbitHelloWorld {
 		channel.close();
 		conn.close();
 	}
+	
+	// 前面我们的事务操作都是针对发送数据
+	// 那么读取数据的时候，能不能使用事务操作呢
+	// rabbitmq 在读取数据的时候也是可以使用事务进行回滚的
+	@Test
+	public void testTX5() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		// 开启事务
+		channel.txSelect();
+		
+		GetResponse response = channel.basicGet("myqueue", false);
+		byte[] body = response.getBody();
+		System.out.println(new String(body));
+		// 理论上，我们应该 basicAck 的，但是我们这里回滚看看，然后暂停个20秒，
+		// 去管理页面看看这条消息有没有又回到队列中
+		// channel.txRollback();
+		
+		// 我们再试试，发送basicAck ，以后再回滚，看看消息能不能取消消费
+		// 结果是可以的
+		channel.basicAck(response.getEnvelope().getDeliveryTag(), false);
+		channel.txRollback();
+		
+		Thread.sleep(20*1000);
+		
+		channel.close();
+		conn.close();
+	}
 }
