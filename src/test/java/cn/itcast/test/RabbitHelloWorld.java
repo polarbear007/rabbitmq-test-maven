@@ -1092,12 +1092,11 @@ public class RabbitHelloWorld {
 		GetResponse response = channel.basicGet("myqueue", false);
 		byte[] body = response.getBody();
 		System.out.println(new String(body));
-		// 理论上，我们应该 basicAck 的，但是我们这里回滚看看，然后暂停个20秒，
-		// 去管理页面看看这条消息有没有又回到队列中
-		// channel.txRollback();
 		
-		// 我们再试试，发送basicAck ，以后再回滚，看看消息能不能取消消费
+		// 我们试试，发送basicAck ，以后再回滚，看看消息能不能取消消费
 		// 结果是可以的
+		// 实际上，当我们使用了事务模式，所以的 basicAck 命令会被缓存起来，你正常消费没有问题
+		// 但是如果事务最后回滚了，前面的所有 basicAck 命令会全部失效
 		channel.basicAck(response.getEnvelope().getDeliveryTag(), false);
 		channel.txRollback();
 		
@@ -1123,6 +1122,9 @@ public class RabbitHelloWorld {
 			public void handleDelivery(String consumerTag, Envelope envelope, BasicProperties properties, byte[] body)
 					throws IOException {
 				System.out.println(new String(body));
+				// 正常确认没有问题，但是事务模式下，这些确认命令并不会马上被 执行
+				// 如果最后事务提交了，那么所有的确认命令就会执行
+				// 如果最后事务回滚了，那么所有的确认命令就直接失效
 				channel.basicAck(envelope.getDeliveryTag(), false);
 			}
 		});
@@ -1132,6 +1134,27 @@ public class RabbitHelloWorld {
 		Thread.sleep(20*1000);
 		
 		channel.close();
+		conn.close();
+	}
+	
+	// 测试一下消费消息，但是没有确认消费，关闭信道还 是关闭连接行为
+	// 会让rabbitmq 服务器认为消费者出现故障，把消息重新放回队列
+	// ===> 结果是关闭信道以后， rabbitmq 就会把消息重新放回队列
+	@Test
+	public void test() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		GetResponse response = channel.basicGet("myqueue", false);
+		System.out.println(new String(response.getBody()));
+		
+		Thread.sleep(1000*10);
+		
+		channel.close();
+		System.out.println("信道关闭");
+		Thread.sleep(100*1000);
 		conn.close();
 	}
 }
