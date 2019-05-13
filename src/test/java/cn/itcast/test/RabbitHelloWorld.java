@@ -1157,4 +1157,67 @@ public class RabbitHelloWorld {
 		Thread.sleep(100*1000);
 		conn.close();
 	}
+	
+	// 测试： 如果一个信道重复声明一个队列，会不会覆盖队列中原有的消息
+	// ===> 答案是不会
+	@Test
+	public void test2() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		channel.queueDeclare("myqueue", true, false, false, null);
+		channel.basicPublish("", "myqueue", MessageProperties.TEXT_PLAIN, "hello".getBytes());
+		channel.queueDeclare("myqueue", true, false, false, null);
+		channel.close();
+		conn.close();
+	}
+	
+	// 测试： 如果两个不同的信道重复声明一个队列，会不会覆盖队列中原有的消息
+	// ===> 答案是不会
+	@Test
+	public void test3() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		channel.queueDeclare("myqueue", true, false, false, null);
+		channel.basicPublish("", "myqueue", MessageProperties.TEXT_PLAIN, "hello".getBytes());
+
+		Channel channel2 = conn.createChannel();
+		
+		channel2.queueDeclare("myqueue", true, false, false, null);
+		
+		channel2.close();
+		channel.close();
+		conn.close();
+	}
+	
+	// 测试： 如果两个不同的连接重复声明一个队列，会不会覆盖队列中原有的消息
+	// ===> 答案是不会
+	@Test
+	public void test4() throws Exception{
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn = factory.newConnection();
+		Channel channel = conn.createChannel();
+		
+		channel.queueDeclare("myqueue", true, false, false, null);
+		channel.basicPublish("", "myqueue", MessageProperties.TEXT_PLAIN, "hello".getBytes());
+		
+		channel.close();
+		conn.close();
+		
+		ConnectionFactory factory2 = new ConnectionFactory();
+		factory2.setUri("amqp://root:root@192.168.48.131:5672/my_vhost");
+		Connection conn2 = factory.newConnection();
+		Channel channel2 = conn2.createChannel();
+		
+		channel2.queueDeclare("myqueue", true, false, false, null);
+		
+		channel2.close();
+		conn2.close();
+	}
 }
